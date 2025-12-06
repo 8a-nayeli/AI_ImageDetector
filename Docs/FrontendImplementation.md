@@ -1,103 +1,87 @@
 # Frontend Implementation Guide (Next.js App Router)
 
-Dieses Dokument beschreibt, wie das Frontend die Backend-API konsumiert und die Architektur aus `Docs/Frontend.md` umsetzt. Fokus: Client-Implementierung, keine UI-Bibliotheksdetails.
+This document captures the concrete implementation of the Next.js frontend that mirrors the contracts from `Docs/Frontend.md` and the FastAPI backend.
 
-## 1. Domain Types (lib/types)
+## 1) Setup & Start
 
-Spiegele die Backend-Contracts:
+```bash
+cd frontend
+cp env.example .env.local   # set NEXT_PUBLIC_API_BASE_URL (default: http://localhost:8000)
+npm install
+npm run dev
+```
+
+### Env
+
+- `NEXT_PUBLIC_API_BASE_URL` points to the FastAPI server that serves `/api/*` and `/static/*`.
+
+## 2) Types (src/lib/types/pairs.ts)
+
+TypeScript mirrors the backend Pydantic models:
 
 - `ImageInfo` `{ id, url, source?, generatorType?, prompt? }`
 - `GradientArtifacts` `{ realGradientUrl, fakeGradientUrl, diffGradientUrl? }`
 - `FeatureVector` `{ meanGradientReal, meanGradientFake, stdGradientReal, stdGradientFake, histogramReal, histogramFake }`
 - `DetectorResult` `{ score, explanation? }`
 - `AnalysisResult` `{ pairId, images: { realImage, fakeImage }, gradients, features, detectors: Record<string, DetectorResult> }`
-- `PairSummary` `{ pairId, realImage, fakeImage }`
+- `ImagePair` (PairSummary) `{ pairId, realImage, fakeImage }`
 
-## 2. API Client (lib/api)
+## 3) API Layer (src/lib/api)
 
-Implement thin wrappers über `fetch`:
+- `client.ts`: base helpers (`getJson`, `postForm`, `ApiError`), reading `NEXT_PUBLIC_API_BASE_URL`.
+- `pairs.ts`:
+  - `uploadPair({ realImage, fakeImage, generatorType?, prompt? })` → POST `/api/analyze/pair`
+  - `getPairList()` → GET `/api/pairs`
+  - `getPairAnalysis(pairId)` → GET `/api/pairs/{pairId}`
+  - `getExamples()` → GET `/api/examples`
 
-- `uploadPair(formData: FormData): Promise<AnalysisResult>`
-  - POST `/api/analyze/pair`
-  - `formData` Felder: `real_image`, `fake_image`, optional `generatorType`, `prompt`
-- `getPairList(): Promise<PairSummary[]>`
-  - GET `/api/pairs`
-- `getPairAnalysis(pairId: string): Promise<AnalysisResult>`
-  - GET `/api/pairs/{pairId}`
-- `getExamples(): Promise<AnalysisResult[]>`
-  - GET `/api/examples`
+All responses are typed with the models above. Errors bubble as `ApiError`.
 
-Basisfunktionen:
+## 4) UI Building Blocks
 
-- `fetchJson<T>(input, init?)` mit Error-Handling (Status prüfen, `response.json()`).
-- Static Assets: nutze `analysis.gradients.*` oder `images.*` URLs direkt (werden über `/static/...` serviert).
+### components/ui/
 
-## 3. Feature Layer (features/)
+Lightweight shadcn-like primitives: `button`, `card`, `input`, `textarea`, `label`, `table`, `badge`, `alert`.
 
-### uploadPair
+### components/domain/
 
-- `useUploadPair` Hook:
-  - lokal: selected files, generatorType, prompt
-  - submit → `uploadPair(formData)`
-  - nach Erfolg: router.push(`/pairs/${pairId}`)
-- UI-Komponenten:
-  - `UploadForm` (Datei Inputs, optional Prompt/Generator)
-  - `UploadResultCard` (zeigt Gradienten/Features kurz an)
+Domain-facing presentation: `LayoutShell` (header + shell), `PageHeader`, `ImagePreview`, `GradientPreview`, `FeatureSummaryCard`, `DetectorScoreBadge`.
 
-### pairList
+## 5) Feature Layer (src/features)
 
-- `usePairList`: GET `/api/pairs`
-- UI:
-  - `PairListTable` (Spalten: pairId, Preview real/fake, Actions)
-  - `PairFilters` (optional: Suchfeld über pairId)
-  - Klick → `/pairs/[pairId]`
+- `uploadPair`
+  - Hook: `useUploadPair` handles loading/error around `uploadPair`.
+  - UI: `UploadForm` (file inputs + optional generator/prompt) pushes to `/pairs/{pairId}` on success.
+- `pairList`
+  - Hook: `usePairList` fetches `/api/pairs`.
+  - UI: `PairListTable` renders pair overview; `PairListScreen` shows actions + loading/error.
+- `pairDetail`
+  - Hook: `usePairAnalysis(pairId)` fetches `/api/pairs/{pairId}`.
+  - UI: `PairTabs` with tabs for Overview (originals), Gradients, Features (stats + histogram preview strings), Detectors (badges).
+- `examples`
+  - Hook: `useExamples` fetches `/api/examples`.
+  - UI: `ExamplesSection` + `ExampleGrid` for landing page cards.
 
-### pairDetail
+Hooks expose `{ data, isLoading, error }` patterns; components stay presentation-focused.
 
-- `usePairAnalysis(pairId)`: GET `/api/pairs/{pairId}`
-- Tabs/Ansichten:
-  - Overview: Originalbilder (`ImagePreview`)
-  - Gradients: real/fake/diff (`GradientPreview`)
-  - Features: Tabellen (Mittelwerte, Std) + Charts (Histogramme)
-  - Detectors: Badge/Panel pro Detector (`DetectorScoreBadge`)
+## 6) Routing (src/app)
 
-### examples (optional)
+- `/` landing with CTA + `ExamplesSection`.
+- `/upload` → `UploadPairScreen`.
+- `/pairs` → `PairListScreen`.
+- `/pairs/[pairId]` → `PairDetailScreen`.
 
-- `useExamples`: GET `/api/examples`
-- Re-use `PairDetail` Komponenten oder Gallery.
+Routes are thin; layout shell lives inside each page for clarity.
 
-## 4. Routing (app/)
+## 7) Data & UX Notes
 
-- `/` Landing: kurze Erklärung + CTA Upload / Browse
-- `/upload`: rendert `UploadScreen` (Feature uploadPair)
-- `/pairs`: rendert `PairListScreen`
-- `/pairs/[pairId]`: rendert `PairDetailScreen`
-- `/experiments` (optional): aggregierte Ergebnisse
+- Images/gradients are rendered via provided URLs (served from backend static mount).
+- Detector scores are color-coded badges (success ≥0.75, warning ≥0.5).
+- Histogram data is shown as abbreviated numeric previews; charts can be added under `components/charts` if needed.
+- Error and loading states are surfaced via alerts/text in each feature.
 
-Pages sollten minimal Logik enthalten und Feature-Komponenten rendern.
+## 8) Extensibility
 
-## 5. UI Schichten
-
-- `components/ui`: shadcn primitives (Button, Card, Tabs, Table, Input, Alert, Skeleton)
-- `components/domain`: Domain-spezifische Darstellungen
-  - `ImagePreview`, `GradientPreview`, `FeatureSummaryCard`, `DetectorScoreBadge`, `PageHeader`, `LayoutShell`
-- `components/charts` (optional): `GradientHistogram`, `FeatureRadarChart`
-  - Input: bereits aufbereitete Daten (z. B. bins/counts)
-
-## 6. Datenaufbereitung
-
-- Histogramme: nutze `features.histogramReal|Fake`
-- Scores: Anzeige z. B. mit Farbe (low/medium/high) anhand `score` (0..1)
-- URLs: direkt in `<Image />` (Next Image) oder `<img>` laden; sie zeigen auf `/static/...`
-- Error/Loading: Hooks liefern `{ data, isLoading, error }`
-
-## 7. Testing
-
-- API Stubs/Mocks für Storybook oder Tests können `AnalysisResult` Sample-Objekte aus JSON nutzen.
-- E2E: Upload-Flow (POST), Detail-Ansicht (GET), Pair-List (GET).
-
-## 8. Erweiterbarkeit
-
-- Neue Detectoren erscheinen automatisch in `detectors` Map → UI iteriert über Keys.
-- Zusätzliche Features können optional Felder hinzufügen; UI sollte tolerant sein (optionale chaining).
-- Falls Backend Histogram-Bins ändert: Typ anpassen und Chart-Komponente parametrisieren.
+- New detectors automatically appear because the UI iterates the `detectors` map.
+- Additional feature fields can be added to the types and rendered with new domain components without touching routes.
+- Adding experiments page: create `app/experiments` and reuse list/detail patterns with new API helpers.

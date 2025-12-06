@@ -1,116 +1,108 @@
-## 1. Ziele der Frontend Architektur
+## 1. Goals of the Frontend Architecture
 
-Das Frontend soll
+The frontend should:
 
-1. Bildpaare hochladen und an das Backend schicken
-2. Analysen eines Bildpaares übersichtlich visualisieren
+1. Upload image pairs and send them to the backend
+2. Visualize analyses clearly:
+   - original images
+   - gradient maps
+   - features and detector scores
+3. Browse and open existing analyses
+4. Provide clean, reusable UI with shadcn components
+5. Be clearly separated into:
+   - routing
+   - feature logic
+   - UI components
+   - API access
 
-   - Originalbilder
-   - Gradient Maps
-   - Features und Detector Scores
-
-3. Vorhandene Analysen durchsuchen und öffnen
-4. Sauberes, wiederverwendbares UI mit shadcn Komponenten haben
-5. Klar getrennt sein in
-
-   - Routing
-   - Feature Logik
-   - UI Komponenten
-   - API Zugriff
-
-Ich gehe von Next.js App Router aus.
+Assumes Next.js App Router.
 
 ---
 
-## 2. High Level Struktur
+## 2. High-Level Structure
 
-Im Monorepo etwa:
+In a monorepo, e.g.:
 
 ```text
 frontend/
   app/
-  src/ or (direkt in app)
+  src/ (or directly in app)
   components/
   features/
   lib/
   styles/
 ```
 
-Ich schlage vor, die Logik nach "Features" zu strukturieren, nicht nach "Technik". Also z. B. Feature "AnalyzePair", Feature "PairGallery", etc.
+Organize by “features” rather than “tech”: e.g., AnalyzePair, PairGallery.
 
 ---
 
-## 3. Routing Ebene (Next.js app/)
+## 3. Routing Layer (Next.js app/)
 
-### Wichtige Routen
+### Key routes
 
-- `/`
+- `/`  
   Landing page
 
-  - kurze Erklärung, was das Projekt macht
-  - Call to action: "Upload pair" oder "Browse examples"
+  - brief description of the project
+  - call to action: “Upload pair” or “Browse examples”
 
-- `/upload`
-  Upload Page
+- `/upload`  
+  Upload page
 
-  - Formular für reales und generiertes Bild
-  - optional: Metadaten (Generator, Prompt)
-  - schickt Anfrage an Backend
-  - danach Redirect zur Detailseite des erzeugten Pairs
+  - form for real and generated image
+  - optional metadata (generator, prompt)
+  - sends request to backend
+  - then redirects to detail page of the created pair
 
-- `/pairs`
-  Gallery / Overview Page
+- `/pairs`  
+  Gallery / overview
 
-  - Liste aller bisherigen Bildpaare mit wichtigsten Infos
-  - Filterung und Sortierung
+  - list of all pairs with key info
+  - filtering and sorting
 
-- `/pairs/[pairId]`
-  Detail Analyse Page
+- `/pairs/[pairId]`  
+  Detail analysis page
 
-  - zeigt alle Details zu einem bestimmten Bildpaar
-  - Tabs für verschiedene Sichten
-
+  - shows all details for a pair
+  - tabs:
     - Overview
     - Gradient Space
     - Features
     - Detectors
 
-- optional `/experiments`
-  Übersicht über experimentelle Runs
+- optional `/experiments`  
+  Overview of experiment runs (e.g., multiple detectors on a dataset)
 
-  - z. B. mehrere Detektoren auf einem Datensatz
-
-### App Verzeichnis Struktur
-
-Beispiel:
+### App directory structure
 
 ```text
 app/
-  layout.tsx            # Shell, Navbar, Theme Provider
-  page.tsx              # Landing
+  layout.tsx            # shell, navbar, theme provider
+  page.tsx              # landing
   upload/
     page.tsx
   pairs/
-    page.tsx            # Liste
+    page.tsx            # list
     [pairId]/
-      page.tsx          # Detailanalyse
+      page.tsx          # detail
   experiments/
     page.tsx            # optional
 ```
 
-Die Route Pages selbst sollten möglichst wenig Logik enthalten, nur Zusammensetzen von Feature Komponenten.
+Route pages should contain minimal logic—compose feature components.
 
 ---
 
 ## 4. Feature Layer
 
-Im Ordner `features/` kapselst du die eigentliche "Use Case Logik". Jede Feature hat
+Folder `features/` encapsulates use-case logic. Each feature has:
 
-- Container Komponenten (mit Data Fetching, State, Routing)
-- reine UI Komponenten, die nur Props anzeigen
-- API Hooks oder Service Funktionen
+- container components (data fetching, state, routing)
+- pure UI components (props only)
+- API hooks or service functions
 
-### Beispiel Feature Ordner
+### Example feature folders
 
 ```text
 features/
@@ -142,57 +134,57 @@ features/
     ...
 ```
 
-Die Idee:
+Idea:
 
-- `hooks/` sprechen mit `lib/api` und halten Loading, Error, Data
-- `components/` erwarten Data über Props und kümmern sich nur um Darstellung
-- `index.ts` exportiert die Hauptentry-Komponenten für die Routes
+- `hooks/` call `lib/api` and manage loading/error/data
+- `components/` expect data via props, focus on rendering
+- `index.ts` exports entry components for routes
 
 ---
 
-## 5. API und Datenzugriff im Frontend
+## 5. API and Data Access in the Frontend
 
-Der Frontend Code soll nicht überall `fetch` verstreut haben. Stattdessen:
+Avoid scattered `fetch`. Instead:
 
 ```text
 lib/
   api/
-    client.ts          # Basisfunktionen für Requests, z. B. fetchJson
-    pairs.ts           # Funktionen: getPairList, getPairDetails, uploadPair
+    client.ts          # base request helpers, e.g., fetchJson
+    pairs.ts           # getPairList, getPairDetails, uploadPair
     experiments.ts     # optional
   types/
-    analysis.ts        # TS Types, gespiegelt aus Backend Domain / API
+    analysis.ts        # TS types mirrored from backend domain/API
     pairs.ts
   utils/
-    formatters.ts      # z. B. Anzeige von Scores, Prozenten, etc.
+    formatters.ts      # e.g., display scores, percentages
 ```
 
-Typische Functions in `lib/api/pairs.ts`:
+Typical functions in `lib/api/pairs.ts`:
 
 - `uploadPair(formData)`
 - `getPairAnalysis(pairId)`
 - `getPairList(filters)`
 
-Deine Feature Hooks `usePairAnalysis`, `usePairList` usw. rufen diese Funktionen auf und kapseln auch eventuell React Query oder manuelles State Handling.
+Feature hooks (`usePairAnalysis`, `usePairList`, etc.) call these and can wrap React Query or manual state.
 
 ---
 
-## 6. UI Layer mit shadcn
+## 6. UI Layer with shadcn
 
-Ich würde eine Trennung machen zwischen
+Separate:
 
-1. Low level UI Building Blocks (Buttons, Cards, Tabs)
-2. Domain spezifischen Komponenten (GradientViewer, FeatureTable usw.)
+1. Low-level UI building blocks (buttons, cards, tabs)
+2. Domain-specific components (GradientViewer, FeatureTable, etc.)
 
-### 6.1 Low Level UI
+### 6.1 Low-level UI
 
-Ordner:
+Folder:
 
 ```text
 components/ui/
 ```
 
-Dort liegen die generierten oder leicht angepassten shadcn Komponenten:
+Contains generated or slightly adapted shadcn components:
 
 - `button.tsx`
 - `card.tsx`
@@ -201,13 +193,13 @@ Dort liegen die generierten oder leicht angepassten shadcn Komponenten:
 - `label.tsx`
 - `table.tsx`
 - `alert.tsx`
-- usw.
+- etc.
 
-Diese Komponenten kennen keine Domain, sind generische UI Bausteine.
+These are generic, domain-agnostic.
 
-### 6.2 Domain UI Komponenten
+### 6.2 Domain UI components
 
-Im Ordner:
+Folder:
 
 ```text
 components/domain/
@@ -219,87 +211,70 @@ components/domain/
   PageHeader.tsx
 ```
 
-Diese Komponenten kombinieren shadcn UI mit Domain Konzepten, sind aber noch unabhängig von API Calls. Sie bekommen alles per Props.
+These combine shadcn UI with domain concepts, still API-agnostic. They receive everything via props.
 
-Beispiele:
+Examples:
 
-- `ImagePreview` nimmt `src`, `label` etc.
-- `GradientPreview` nimmt `src` für eine Gradient Map
-- `FeatureSummaryCard` nimmt ein verkleinertes Feature Objekt und zeigt es grafisch
-- `DetectorScoreBadge` nimmt `score` und `detectorName` und zeigt ein Badge mit Farbcodierung
+- `ImagePreview` takes `src`, `label`, etc.
+- `GradientPreview` takes `src` for a gradient map
+- `FeatureSummaryCard` takes a reduced feature object and shows it
+- `DetectorScoreBadge` takes `score` and `detectorName`, shows colored badge
 
 ---
 
 ## 7. State Management
 
-Für das Projekt reicht in der Regel:
+Usually sufficient:
 
-- Server Components für statische Dinge
-- Client Components plus Hooks für interaktive Bereiche
-- Daten pro Seite über Hooks mit `fetch` oder React Query
+- server components for static parts
+- client components + hooks for interactive areas
+- page data via hooks using `fetch` or React Query
 
-Klarer Vorschlag:
+Recommendation:
 
-- Kein globales Redux, das wäre Overkill
-- Pro Feature Hook wie `usePairAnalysis(pairId)`
+- No global Redux—overkill
+- Feature hook per use case, e.g., `usePairAnalysis(pairId)`
+  - handles request to `/api/pairs/{id}`
+  - returns `{ data, isLoading, error }`
+- Navigation/selection primarily via URL params
+  - e.g., filters as query params on `/pairs`
 
-  - kümmert sich um Anfrage an `/api/pairs/{id}`
-  - liefert `{ data, isLoading, error }`
-
-- Navigation und Auswahl primär über URL Parameter
-
-  - z. B. Filters als Query Params auf `/pairs`
-
-So bleibt der Zustand nachvollziehbar und nah am Routing, was super für Debugging ist.
+Keeps state traceable and aligned with routing—great for debugging.
 
 ---
 
-## 8. Typische Page Kompositionen
+## 8. Typical Page Compositions
 
-Damit du siehst, wie die Teile zusammenspielen, einmal grob, wie z. B. die `PairDetail` Page aufgebaut ist, nur auf Architektur Ebene:
+Example for `PairDetail` page (architecture level):
 
 1. `app/pairs/[pairId]/page.tsx`
-
-   - liest `pairId` aus der URL
-   - rendert eine Feature Komponente, zum Beispiel `PairDetailScreen`
-
+   - reads `pairId` from URL
+   - renders a feature component, e.g., `PairDetailScreen`
 2. `features/pairDetail/index.ts`
-
-   - exportiert `PairDetailScreen`
-
-3. `PairDetailScreen` (Feature Container)
-
-   - ruft `usePairAnalysis(pairId)`
-   - zeigt Loading oder Error Zustände
-   - wenn Daten da sind, rendert Domain Komponenten, z. B.
-
-     - `PairTabs` mit Tabs: Overview, Gradients, Features, Detectors
-
-4. Tabs enthalten kleinere Domain Komponenten
-
-   - `PairOverview`
-
-     - nutzt `ImagePreview` Komponenten
-
-   - `GradientView`
-
-     - nutzt `GradientPreview` für real und fake, vielleicht eine Differenzkarte
-
+   - exports `PairDetailScreen`
+3. `PairDetailScreen` (feature container)
+   - calls `usePairAnalysis(pairId)`
+   - shows loading/error
+   - when data is ready, renders domain components, e.g.:
+     - `PairTabs` with tabs: Overview, Gradients, Features, Detectors
+4. Tabs contain smaller domain components
+   - `PairOverview` (uses `ImagePreview`)
+   - `GradientView` (uses `GradientPreview` for real/fake, maybe diff)
    - `FeatureTable`
    - `DetectorScorePanel`
 
-Diese Komposition macht klar, wo die Verantwortung liegt:
+Responsibility clarity:
 
-- Der Page File ist nur Routing und Shell
-- Der Feature Container kennt API und Domain
-- Domain Komponenten kennen nur Domain Daten und UI
-- shadcn Komponenten kennen nur Layout und Styling
+- Page file: routing + shell
+- Feature container: knows API + domain
+- Domain components: know domain data + UI
+- shadcn components: layout/styling only
 
 ---
 
-## 9. Visualisierungen integrieren
+## 9. Integrating Visualizations
 
-Wenn du zusätzlich Plotting brauchst, etwa Histogramme der Gradientenstärken, würde ich das auch sauber kapseln:
+If you need plotting (e.g., gradient magnitude histograms), encapsulate it:
 
 ```text
 components/charts/
@@ -307,25 +282,25 @@ components/charts/
   FeatureRadarChart.tsx
 ```
 
-Diese Komponenten erwarten bereits vorbereitete Datenstrukturen, z. B.
+These expect prepared inputs, e.g.:
 
-- `bins` und `counts` für Histogramme
-- oder ein Feature Objekt, das in radiale Achsen gemappt wird
+- `bins` and `counts` for histograms
+- a feature object mapped to radial axes
 
-Die Transformation von Rohdaten in Chart Inputs sollte in den Feature Hooks oder in `lib/utils/transformers.ts` passieren, nicht im Chart selbst. So bleibt der Chart generisch und wiederverwendbar.
+Transform raw data to chart inputs in feature hooks or `lib/utils/transformers.ts`, not inside the chart, to keep charts generic and reusable.
 
 ---
 
-## 10. Warum diese Architektur gut mit dem Backend zusammenspielt
+## 10. Why This Plays Well with the Backend
 
-- Die Backend Domain Typen spiegelst du in `lib/types` im Frontend, so bleibt es typsicher und konsistent.
-- Die Endpoints aus dem API Layer des Backends spiegelst du 1:1 in `lib/api`.
-- Jede größere Funktionalität im Backend (Bildpaar analysieren, Analysen auflisten) hat ein entsprechendes Feature im Frontend.
+- Mirror backend domain types in `lib/types` for type safety and consistency.
+- Mirror backend API endpoints 1:1 in `lib/api`.
+- Every major backend capability (analyze pair, list analyses) has a corresponding frontend feature.
 
-So kannst du sehr klar argumentieren:
+So you can argue clearly:
 
-- Diese Route entspricht diesem Use Case
-- Dieser Use Case nutzt diese API Calls
-- Die API Calls sprechen mit diesen Backend Funktionen
+- This route maps to this use case
+- This use case calls these API endpoints
+- The endpoints call these backend functions
 
-Und du bekommst genau das, was du wolltest: clean, modular, gut erweiterbar und wissenschaftlich nutzbar.
+Result: clean, modular, extensible, and scientifically usable.

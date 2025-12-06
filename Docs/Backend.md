@@ -1,29 +1,29 @@
-## 1. Ziele der Backend Architektur
+## 1. Goals of the Backend Architecture
 
-Das Backend soll
+The backend should:
 
-1. Bildpaare (real, fake) entgegennehmen und verwalten
-2. Gradienten und weitere Features berechnen
-3. verschiedene Detektoren (Baseline und SOTA) kapseln
-4. Ergebnisse als saubere JSON Strukturen an das Frontend liefern
-5. Experimente wiederholbar machen, unabhängig vom Web Teil
-6. modular und erweiterbar bleiben, damit du später neue Methoden einbauen kannst
+1. Accept and manage image pairs (real, fake)
+2. Compute gradients and additional features
+3. Encapsulate various detectors (baseline and SOTA)
+4. Deliver results as clean JSON structures to the frontend
+5. Make experiments repeatable, independent of the web part
+6. Stay modular and extensible for future methods
 
-Daraus ergibt sich eine Schichtung:
+This implies these layers:
 
-- **Domain Layer**, zentrale Datentypen und Begriffe
-- **Core Analysis Layer**, Bildverarbeitung, Gradienten, Features
-- **Detection Layer**, Modelle und Klassifikatoren
-- **Data Layer**, Ablage von Bildern, Analysen, Experimenten
-- **API Layer**, HTTP Schnittstellen
-- **Config und Infra**, Settings, Pfade, Logging
-- **Tests**, Unit und Integration
+- **Domain layer**: central data types and concepts
+- **Core analysis layer**: image processing, gradients, features
+- **Detection layer**: models and classifiers
+- **Data layer**: storage of images, analyses, experiments
+- **API layer**: HTTP interfaces
+- **Config and infra**: settings, paths, logging
+- **Tests**: unit and integration
 
 ---
 
-## 2. Ordnerstruktur des Backends
+## 2. Backend Folder Structure
 
-Zum Beispiel so:
+Example:
 
 ```text
 backend/
@@ -40,7 +40,7 @@ backend/
     integration/
 ```
 
-Ich gehe die Ebenen jetzt einzeln durch.
+We walk through each layer below.
 
 ---
 
@@ -48,47 +48,41 @@ Ich gehe die Ebenen jetzt einzeln durch.
 
 `src/domain/`
 
-Hier definierst du die **fachlichen Konzepte**, ohne technische Details. Das ist quasi dein Vokabular für das gesamte Projekt.
+Define **business concepts** without technical details—your vocabulary for the project.
 
-Typische Module:
+Typical modules:
 
 - `image_pair.py`
 
-  - Konzept eines Bildpaares
-
+  - Concept of an image pair
     - real_image_id
     - fake_image_id
     - optional: generator_type, prompt, source_dataset
 
 - `analysis_result.py`
 
-  - Ergebnis einer Analyse für ein Bildpaar
-
-    - referenziert ein `ImagePair`
-    - Gradient Maps (als Referenzen, nicht als Rohdaten)
-    - Feature Vektoren
-    - Detector Scores pro Methode
+  - Analysis result for an image pair
+    - references an `ImagePair`
+    - gradient maps (as references, not raw data)
+    - feature vectors
+    - detector scores per method
 
 - `detector.py`
 
-  - abstrakter Begriff eines Detektors
-
-    - Name
-    - Beschreibung
-    - Eingabeformat (zum Beispiel Gradient Maps, Features)
-    - Ausgabescore
+  - Abstract notion of a detector
+    - name
+    - description
+    - input format (e.g., gradient maps, features)
+    - output score
 
 - `experiment.py`
+  - An experiment run
+    - which detectors
+    - which dataset
+    - configuration parameters
+    - aggregated metrics
 
-  - ein Experiment Run
-
-    - welche Detektoren
-    - welcher Datensatz
-    - Konfigurationsparameter
-    - Aggregierte Metriken
-
-Wichtig:
-Der Domain Layer kennt noch keine Frameworks, keine Pfade auf der Platte, keine HTTP Requests. Nur Konzepte und Datenstrukturen.
+Important: the domain layer knows no frameworks, no file paths, no HTTP—only concepts and data structures.
 
 ---
 
@@ -96,45 +90,38 @@ Der Domain Layer kennt noch keine Frameworks, keine Pfade auf der Platte, keine 
 
 `src/core/`
 
-Hier liegt die eigentliche Bildverarbeitung und Analyse Logik. Dieser Layer macht aus Pixeln Gradienten und aus Gradienten Features.
+Holds the actual image processing and analysis logic: turns pixels into gradients and gradients into features.
 
-Mögliche Module:
+Possible modules:
 
 - `image_io.py`
 
-  - Laden und Speichern von Bildern aus Dateipfaden oder Binaries
-  - Normalisierung (Größe, Farbkanäle)
-  - Konvertierung in interne Repräsentation
+  - Load/save images from file paths or binaries
+  - Normalization (size, channels)
+  - Convert to internal representation
 
 - `gradients.py`
 
-  - Funktionen zur Berechnung von Gradienten
-
-    - Kantenfilter (Sobel, Scharr, Laplacian als Varianten)
-    - eventuell Autograd Varianten für spätere Experimente
-
-  - Ausgabe: Gradient Maps pro Kanal oder kombiniert
+  - Functions to compute gradients
+    - edge filters (Sobel, Scharr, Laplacian variants)
+    - possibly autograd variants for experiments
+  - Output: gradient maps per channel or combined
 
 - `features.py`
 
-  - Extraktion von Merkmalen aus Gradient Maps
-
-    - statistische Kennzahlen (Mittelwerte, Varianz, Histogramme)
-    - eventuell Frequenzanalysen im Gradient Space
-
-  - Ausgabe: strukturierter Feature Vektor, den die Detektoren verwenden
+  - Extract features from gradient maps
+    - statistics (means, variance, histograms)
+    - possibly frequency analysis in gradient space
+  - Output: structured feature vector used by detectors
 
 - `visualization.py`
+  - Produce visualizable artifacts for the frontend
+    - grayscale gradient images
+    - heatmaps
+    - diff maps real vs. fake in gradient space
+  - Provides files or references for static serving
 
-  - Erzeugung von visualisierbaren Artefakten für das Frontend
-
-    - Graustufen Gradient Bilder
-    - Heatmaps
-    - Differenzkarten real vs fake im Gradient Space
-
-  - Liefert Dateien oder Referenzen, die später über Static Serving verfügbar sind
-
-Core kennt nur minimale Annahmen über die Umgebung, idealerweise nichts über HTTP oder Datenbank.
+Core should assume almost nothing about environment—ideally no HTTP or DB knowledge.
 
 ---
 
@@ -142,42 +129,35 @@ Core kennt nur minimale Annahmen über die Umgebung, idealerweise nichts über H
 
 `src/detection/`
 
-Dieser Layer kapselt alles, was mit Klassifikation oder Erkennung zu tun hat, auf Basis der Core Outputs.
+Encapsulates classification/detection based on core outputs.
 
-Module:
+Modules:
 
 - `base.py`
 
-  - abstraktes Interface für Detektoren
-
-    - zum Beispiel Methoden wie `fit`, `predict`, `describe`
-
-  - definiert, welche Eingaben ein Detektor erwartet
-
-    - nur Features
-    - oder direkt Gradient Maps
+  - Abstract interface for detectors
+    - e.g., methods like `fit`, `predict`, `describe`
+  - Defines expected inputs
+    - features only
+    - or direct gradient maps
 
 - `gradient_stats_detector.py`
 
-  - einfacher, interpretabler Baseline Detektor
-
-    - arbeitet nur auf statistischen Features der Gradienten
-
-  - eignet sich super, um Unterschiede zu erklären
+  - Simple, interpretable baseline detector
+    - operates on statistical gradient features
+  - Great for explaining differences
 
 - `ml_detector.py`
 
-  - generischer Wrapper für Machine Learning Modelle
-
-    - lädt Modelle von Disk
-    - kümmert sich um Vorverarbeitung und Postprocessing
+  - Generic wrapper for ML models
+    - loads models from disk
+    - handles pre/post-processing
 
 - `sota_gradient_detector.py`
+  - Slot for a SOTA detector from a paper, e.g., CNN on gradient maps
+  - Implements same interface as `BaseDetector` so API layer stays unchanged
 
-  - Platz für einen SOTA Detektor nach Paper, zum Beispiel ein CNN, das auf Gradient Maps trainiert ist
-  - implementiert dasselbe Interface wie `BaseDetector`, damit die API Schicht nicht angepasst werden muss
-
-Detection Layer hängt von Core ab, aber nicht umgekehrt.
+Detection depends on Core, never the reverse.
 
 ---
 
@@ -185,50 +165,42 @@ Detection Layer hängt von Core ab, aber nicht umgekehrt.
 
 `src/data_access/`
 
-Dieser Layer kümmert sich darum, wie du auf deine Daten zugreifst und sie sicher ablegst.
+Handles how data is stored/retrieved safely.
 
-Module:
+Modules:
 
 - `file_storage.py`
 
-  - Verantwortlich für
-
-    - Speicherorte von Rohbildern
-    - Speicherorte von generierten Gradient Visualisierungen
-
-  - Regeln, z. B. Ordnerstruktur
-
+  - Responsible for
+    - storage of raw images
+    - storage of generated gradient visualizations
+  - Rules, e.g., folder layout
     - `data/images/real`
     - `data/images/fake`
     - `data/gradients/<pair_id>/`
 
 - `analysis_repository.py`
 
-  - Speichern und Laden von `AnalysisResult` Objekten
-
-    - als JSON Dateien
-    - oder in einer kleinen Datenbank, etwa SQLite
-
-  - Bietet Methoden wie
-
+  - Store/load `AnalysisResult` objects
+    - as JSON files
+    - or a small DB like SQLite
+  - Methods like
     - `save_analysis(result)`
     - `get_analysis(pair_id)`
     - `list_analyses(filters)`
 
 - `pair_repository.py`
 
-  - Verwaltung von `ImagePair` Metadaten
-
-    - id Vergabe
-    - Mapping von IDs auf Pfade der Bilder
-    - Optionale Labels, falls du Ground Truth verwalten willst
+  - Manage `ImagePair` metadata
+    - id assignment
+    - mapping IDs to image paths
+    - optional labels for ground truth
 
 - `experiment_repository.py`
+  - Store experiment runs and aggregates
+  - important for later evaluation in Python or frontend
 
-  - Speichern von Experiment Runs und ihren Aggregaten
-  - wichtig für spätere Auswertungen in Python oder im Frontend
-
-Data Access Layer spricht mit Dateisystem oder Datenbank, aber hält sich an Domain Typen.
+Data access talks to file system or DB but sticks to domain types.
 
 ---
 
@@ -236,66 +208,57 @@ Data Access Layer spricht mit Dateisystem oder Datenbank, aber hält sich an Dom
 
 `src/api/`
 
-Diese Schicht verbindet Backend Logik mit der Außenwelt, also Next.js oder andere Client Anwendungen.
+Connects backend logic to the outside world (Next.js or other clients).
 
-Typische Teilung:
+Typical split:
 
-- `routes/` oder `controllers/`
+- `routes/` or `controllers/`
 
-  - definieren Endpoints und orchestrieren den Flow
-  - Beispiele
-
+  - define endpoints and orchestrate flow
+  - examples:
     - `analyze_pair_controller`
-
-      - nimmt Upload entgegen
-      - delegiert an Core und Detection
-      - ruft Repositories zum Speichern
-      - baut ein `AnalysisResult` Domain Objekt
-      - serialisiert es zu einer API Response Struktur
-
+      - accepts uploads
+      - delegates to core and detection
+      - uses repositories to persist
+      - builds an `AnalysisResult` domain object
+      - serializes to API response
     - `examples_controller`
-
-      - listet vorhandene Bildpaare und Analysen
-
+      - lists existing pairs/analyses
     - `experiments_controller`
-
-      - Endpoints zum Starten oder Abfragen von Experimenten
+      - start or query experiments
 
 - `schemas/`
+  - request/response models
+  - mapping between domain objects and public API structure
+  - clearly separated so domain and API evolve independently
 
-  - request und response Modelle
-  - Mapping zwischen Domain Objekten und der öffentlichen API Struktur
-  - klar getrennt, damit du Domain und API unabhängig entwickeln kannst
-
-Die API Schicht kennt HTTP, Auth, Validation und Content Types, aber keine interne Implementierungsdetails von Gradientenberechnung. Sie ruft die höheren Layer nur über deren öffentliche Funktionen an.
+The API layer knows HTTP, auth, validation, content types, but no internal gradient details. It only calls upper layers via their public functions.
 
 ---
 
-## 8. Config und Utilities
+## 8. Config and Utilities
 
-`src/config/` und `src/utils/`
+`src/config/` and `src/utils/`
 
 - `config/settings.py`
 
-  - globale Einstellungen
-
-    - Pfade für Daten
-    - Modellpfade
-    - Debug Flags
+  - global settings
+    - data paths
+    - model paths
+    - debug flags
 
 - `config/env.py`
 
-  - Laden von Umgebungsvariablen
+  - load environment variables
 
 - `utils/logging.py`
 
-  - zentrale Logging Konfiguration
+  - central logging config
 
 - `utils/errors.py`
+  - custom errors to map into API responses
 
-  - eigene Fehlertypen, die du in API Responses mappen kannst
-
-Damit bleibt vieles zentral konfigurierbar und du vermeidest Hardcoding.
+Keeps configuration centralized and avoids hardcoding.
 
 ---
 
@@ -305,66 +268,50 @@ Damit bleibt vieles zentral konfigurierbar und du vermeidest Hardcoding.
 
 - `tests/unit/`
 
-  - Core Funktionen testen
-
-    - Gradientenberechnung
-    - Feature Extraktion
-    - einfache Detector Logik
+  - test core functions:
+    - gradient computation
+    - feature extraction
+    - simple detector logic
 
 - `tests/integration/`
+  - test full flows:
+    - upload an image pair
+    - save analyses
+    - fetch result via API
 
-  - komplette Flows testen
-
-    - Upload eines Bildpaares
-    - Analysen speichern
-    - Ergebnis über API abrufen
-
-Ziel: du bist nicht von Handtests im Frontend abhängig, sondern kannst Kernlogik automatisiert prüfen.
+Goal: rely less on manual frontend tests; validate core logic automatically.
 
 ---
 
-## 10. Typischer Flow innerhalb des Backends
+## 10. Typical Flow Inside the Backend
 
-Um die Architektur greifbar zu machen, einmal der interne Weg für `analyze_pair`:
+To make the architecture tangible, the internal path for `analyze_pair`:
 
-1. API Layer
+1. API layer
+   - receives request
+   - validates input
+   - creates `ImagePair` domain object
+2. Data access layer
+   - stores raw images and metadata
+   - returns paths or IDs
+3. Core layer
+   - loads images
+   - computes gradients
+   - extracts features
+   - creates visualizations
+4. Detection layer
+   - takes features and optional gradients
+   - computes scores with one or more detectors
+5. Domain layer
+   - composes an `AnalysisResult` object
+6. Data access layer
+   - stores `AnalysisResult`
+7. API layer
+   - maps `AnalysisResult` to a response
+   - sends to frontend
 
-   - nimmt Request entgegen
-   - validiert Input
-   - erzeugt Domain Objekt `ImagePair`
-
-2. Data Access Layer
-
-   - speichert Rohbilder und Metadaten
-   - gibt Pfade oder IDs zurück
-
-3. Core Layer
-
-   - lädt Bilder
-   - berechnet Gradienten
-   - extrahiert Features
-   - erzeugt Visualisierungen
-
-4. Detection Layer
-
-   - bekommt Features und optional Gradients
-   - berechnet Scores mit einem oder mehreren Detektoren
-
-5. Domain Layer
-
-   - daraus wird ein `AnalysisResult` Objekt zusammengesetzt
-
-6. Data Access Layer
-
-   - speichert `AnalysisResult`
-
-7. API Layer
-
-   - mappt `AnalysisResult` auf eine Response Struktur
-   - schickt sie ans Frontend
-
-Damit ist klar getrennt, wer wofür verantwortlich ist, und du kannst an jedem Layer separat weiter denken oder optimieren.
+Responsibility boundaries stay clear, so you can optimize each layer separately.
 
 ---
 
-Wenn du möchtest, können wir im nächsten Schritt konkret die **Domain Typen** und die **API Responses** als Struktur definieren, also welche Felder ein `AnalysisResult` genau haben soll und wie das JSON aussieht, das Next.js dann visualisiert.
+If desired, next step could define **domain types** and **API responses** concretely: exact fields of `AnalysisResult` and the JSON that Next.js will render.

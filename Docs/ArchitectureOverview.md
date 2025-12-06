@@ -1,21 +1,21 @@
-# Architektur Overview
+# Architecture Overview
 
-Dieses Dokument beschreibt das System auf hoher Ebene
+This document describes the system at a high level:
 
-- welche Teile es gibt
-- wie sie miteinander sprechen
-- welche Contracts zwischen den Schichten existieren
+- which parts exist
+- how they communicate
+- which contracts exist between layers
 
-Details zu einzelnen Teilen stehen dann in
+Details for individual parts:
 
-- `docs/Backend.md`
-- `docs/Frontend.md`
+- `Docs/Backend.md`
+- `Docs/Frontend.md`
 
 ---
 
-## 1. High Level Systembild
+## 1. High-Level System Diagram
 
-Abstrakte Übersicht:
+Abstract view:
 
 ```txt
 ┌─────────────────────────────────────────────┐
@@ -25,28 +25,28 @@ Abstrakte Übersicht:
 │  - Upload Pair UI                          │
 │  - Pair Gallery                            │
 │  - Pair Detail View                        │
-│  - Charts und Visualisierungen             │
+│  - Charts and Visualizations               │
 └───────────────▲────────────────────────────┘
                 │ HTTP JSON API
                 │
 ┌───────────────┴────────────────────────────┐
 │                  Backend                   │
-│          (Python + FastAPI o. ä.)          │
+│           (Python + FastAPI etc.)          │
 │                                             │
-│  API Layer                                 │
-│  Data Access Layer                         │
-│  Detection Layer                           │
-│  Core Analysis Layer                       │
-│  Domain Layer                              │
+│  API Layer                                  │
+│  Data Access Layer                          │
+│  Detection Layer                            │
+│  Core Analysis Layer                        │
+│  Domain Layer                               │
 └───────────────▲────────────────────────────┘
                 │
-                │ Dateisystem / DB
+                │ File system / DB
                 │
 ┌───────────────┴────────────────────────────┐
 │                  Storage                   │
-│  - Rohbilder (real, fake)                  │
-│  - Gradient Visualisierungen               │
-│  - Analysis Results                        │
+│  - Raw images (real, fake)                 │
+│  - Gradient visualizations                 │
+│  - Analysis results                        │
 │  - Experiments                             │
 └────────────────────────────────────────────┘
 ```
@@ -55,178 +55,162 @@ Abstrakte Übersicht:
 
 ## 2. Bounded Contexts
 
-Wir haben drei logische Kontexte:
+Three logical contexts:
 
-1. **Frontend Kontext**
-   Darstellung, Interaktion, Storytelling der Ergebnisse
-2. **Analysis Kontext (Backend Domain + Core + Detection)**
-   Fachlogik rund um Bildpaare, Gradienten, Features, Detektoren
-3. **Persistence Kontext (Data Access + Storage)**
-   Ablage und Wiederauffinden von Daten, aber ohne Analyse Logik
+1. **Frontend context**  
+   Presentation, interaction, storytelling of results
+2. **Analysis context (Backend Domain + Core + Detection)**  
+   Domain logic for image pairs, gradients, features, detectors
+3. **Persistence context (Data Access + Storage)**  
+   Storing and retrieving data, without analysis logic
 
-Jeder Kontext hat klar definierte Contracts und spricht mit dem anderen nur über diese Schnittstellen.
+Each context has clear contracts and communicates only through these interfaces.
 
 ---
 
-## 3. Zentrale Domain Begriffe und Contracts
+## 3. Core Domain Terms and Contracts
 
-Diese Begriffe sind das gemeinsame Vokabular zwischen Frontend und Backend. Sie werden als JSON über die API transportiert und in TypeScript und Python gespiegelt.
+These terms are the shared vocabulary between frontend and backend. They travel as JSON over the API and are mirrored in TypeScript and Python.
 
 ### 3.1 ImagePair
 
-Repräsentiert ein Paar aus realem und generiertem Bild.
+Represents a pair of real and generated images.
 
-Wichtige Felder:
+Key fields:
 
 - `pairId`
 - `realImage`
-
   - `id`
   - `url`
   - optional `source`
-
 - `fakeImage`
-
   - `id`
   - `url`
   - optional `generatorType`
   - optional `prompt`
 
-Der Frontend Contract:
+Frontend contract:
 
-- Frontend muss nur `pairId` und die URLs kennen, keine Dateipfade
-- Backend entscheidet, wie die Dateien wirklich gespeichert werden
+- Frontend only needs `pairId` and URLs, not file paths
+- Backend decides how files are stored
 
 ### 3.2 AnalysisResult
 
-Repräsentiert die Analyse eines `ImagePair`.
+Represents the analysis of an `ImagePair`.
 
-Kernfelder:
+Core fields:
 
 - `pairId`
 - `gradients`
-
   - `realGradientUrl`
   - `fakeGradientUrl`
   - optional `diffGradientUrl`
-
 - `features`
-
-  - z. B. `meanGradientReal`
+  - e.g., `meanGradientReal`
   - `meanGradientFake`
   - `histogramReal`
   - `histogramFake`
-
 - `detectors`
-
-  - Liste oder Map nach Detector Name
-  - z. B. `gradient_stats` mit
-
+  - list or map keyed by detector name
+  - e.g., `gradient_stats` with
     - `score`
     - optional `explanation`
 
-Frontend Contract:
+Frontend contract:
 
-- Frontend zeigt Bilder und Visualisierungen auf Basis der URLs
-- Features sind rein numerische Daten, für Tabellen und Charts
-- Detector Results werden als einfache, flache Objekte angezeigt
+- Render images/visualizations via URLs
+- Features are numeric data for tables/charts
+- Detector results are simple flat objects
 
-Backend Contract:
+Backend contract:
 
-- Backend garantiert, dass für ein `pairId` entweder kein `AnalysisResult` existiert oder ein konsistentes Objekt, das zu diesem Schema passt
+- For a `pairId` either no `AnalysisResult` exists or a consistent object matching this schema
 
 ---
 
-## 4. API Contracts zwischen Frontend und Backend
+## 4. API Contracts Between Frontend and Backend
 
-Die API ist die zentrale Boundary zwischen den beiden Welten. Das Frontend spricht ausschließlich über HTTP + JSON mit dem Backend.
+The API is the central boundary. The frontend talks to the backend only via HTTP + JSON.
 
-Wir haben im Kern drei Gruppen von Endpoints:
+Three endpoint groups:
 
-1. Upload und Analyse
-2. Lesen von Analysen
-3. Experimente und Beispiele
+1. Upload and analysis
+2. Read analyses
+3. Examples and experiments
 
-### 4.1 Upload und Analyse
+### 4.1 Upload and Analysis
 
 **Endpoint**
 
 - `POST /api/analyze/pair`
 
-**Request Contract**
+**Request contract**
 
-- multipart Form Data mit
-
+- multipart form data with
   - `real_image`
   - `fake_image`
   - optional `generatorType`
   - optional `prompt`
 
-Backend Responsibility:
+Backend responsibilities:
 
-- Bilder validieren und speichern
-- Domain Objekt `ImagePair` erzeugen
-- Analyse Pipeline ausführen
-- `AnalysisResult` persistieren
-- konsistente `pairId` vergeben
+- Validate and store images
+- Create `ImagePair` domain object
+- Run analysis pipeline
+- Persist `AnalysisResult`
+- Assign consistent `pairId`
 
-**Response Contract**
+**Response contract**
 
-- HTTP 201 mit einem `AnalysisResult` Objekt
-- minimal enthält
-
+- HTTP 201 with `AnalysisResult` object
+- minimally contains
   - `pairId`
-  - `images` Block
-  - `gradients` Block
-  - `features` Block
-  - `detectors` Block
+  - `images`
+  - `gradients`
+  - `features`
+  - `detectors`
 
-Frontend Responsibility:
+Frontend responsibilities:
 
-- Antwort parsen
-- auf Detailseite navigieren `/pairs/[pairId]`
-- Daten an UI Komponenten durchreichen
+- Parse response
+- Navigate to `/pairs/[pairId]`
+- Pass data to UI components
 
-### 4.2 Lesen von Analysen
+### 4.2 Reading Analyses
 
 **Endpoint**
 
 - `GET /api/pairs`
-
-  - liefert eine Liste von bekannten Bildpaaren, optional mit kurzen Summary Infos
+  - returns list of known image pairs, optionally with short summaries
 
 **Endpoint**
 
 - `GET /api/pairs/{pairId}`
-
-  - liefert das vollständige `AnalysisResult` zu einem bestimmten Paar
+  - returns full `AnalysisResult` for that pair
 
 Contracts:
 
-- Backend garantiert, dass `pairId` eindeutig und stabil ist
-- Frontend behandelt `pairId` als primären Key, sowohl in der URL als auch intern
+- Backend guarantees `pairId` is unique and stable
+- Frontend treats `pairId` as primary key in URL and internally
 
-### 4.3 Beispiele und Experimente
+### 4.3 Examples and Experiments
 
-Optionale, aber sinnvolle Endpoints:
+Optional but useful endpoints:
 
 - `GET /api/examples`
 
-  - liefert vordefinierte Beispiel Paare, z. B. vom Kursleiter bereitgestellt
+  - returns predefined example pairs
 
 - `GET /api/experiments`
+  - aggregated results of multiple analyses
 
-  - aggregierte Ergebnisse mehrerer Analysen
-
-Diese können im Frontend im Bereich "Overview" oder "Experiments" visualisiert werden.
-
-Details zu genauen Feldern stehen in `Backend.md`.
+These can be shown in the frontend in “Overview” or “Experiments”. Field details are in `Backend.md`.
 
 ---
 
-## 5. Beziehungen zwischen Backend Schichten
+## 5. Relationships Between Backend Layers
 
-Im Backend gilt eine klare Einbahnstraße der Abhängigkeiten:
+One-way dependency flow:
 
 ```txt
 API Layer
@@ -238,19 +222,19 @@ Data Access Layer   Detection Layer
           Domain Layer
 ```
 
-- Domain Layer ist die Basis, kennt nur fachliche Konzepte
-- Core Analysis arbeitet auf Domain Typen, kennt keine HTTP Details
-- Detection konsumiert Output des Core Layers und liefert Domain-konforme Scores
-- Data Access kümmert sich darum, Domain Objekte zu speichern und wiederzufinden
-- API Layer orchestriert nur, ruft Domain orientierte Funktionen und Repositories auf, kennt aber keine Implementierungsdetails von Gradientenberechnung
+- Domain layer is the base; only domain concepts
+- Core analysis works on domain types; no HTTP details
+- Detection consumes core output and returns domain-conformant scores
+- Data access stores and retrieves domain objects
+- API layer orchestrates domain functions/repositories; no gradient internals
 
-Konkretere Beschreibung dieser Schichten findest du in `Backend.md`.
+See `Backend.md` for more detail.
 
 ---
 
-## 6. Beziehungen zwischen Frontend Schichten
+## 6. Relationships Between Frontend Layers
 
-Im Frontend gibt es eine ähnliche klare Trennung:
+Similar clear separation:
 
 ```txt
 Next.js Routes (app/)
@@ -264,66 +248,62 @@ UI Building Blocks (components/ui/)
 API Client (lib/api/) + Types (lib/types/)
 ```
 
-- Routes kümmern sich nur um Routing und grobe Layouts
-- Feature Layer kapselt Data Fetching und Use Cases (z. B. "Analyze Pair", "Show Pair List")
-- Domain UI Komponenten kennen Domain Datenstrukturen, aber keine Fetch Logik
-- UI Building Blocks sind reine Präsentationsbausteine, ohne Domain Wissen
-- API Client definiert `getPairAnalysis`, `uploadPair`, `getPairList`
-- Types spiegeln die Contracts aus `AnalysisResult`, `ImagePair` usw.
+- Routes handle routing and layout shells
+- Feature layer encapsulates data fetching/use cases (e.g., Analyze Pair, Pair List)
+- Domain UI components know domain structures, not fetch logic
+- UI building blocks are pure presentation
+- API client defines `getPairAnalysis`, `uploadPair`, `getPairList`
+- Types mirror `AnalysisResult`, `ImagePair`, etc.
 
-Detaillierte Struktur steht in `Frontend.md`.
+Details in `Frontend.md`.
 
 ---
 
 ## 7. End-to-End Flow Contract
 
-Ein kompletter Fluss von Upload bis Visualisierung sieht dann so aus:
+Flow from upload to visualization:
 
-1. User öffnet `/upload` im Frontend
-2. Frontend Komponenten im Feature `uploadPair` sammeln Dateien und Metadaten
-3. Feature Hook ruft `lib/api/pairs.uploadPair` auf
-4. API Client sendet `POST /api/analyze/pair`
-5. Backend API Layer
+1. User opens `/upload`
+2. Feature `uploadPair` collects files/metadata
+3. Feature hook calls `lib/api/pairs.uploadPair`
+4. API client sends `POST /api/analyze/pair`
+5. Backend API layer:
+   - maps request to domain objects (`ImagePair`)
+   - triggers core analysis (`gradients`, `features`)
+   - calls detection layer (`scores`)
+   - stores everything via data access layer
+   - builds `AnalysisResult`
+6. Backend responds with `AnalysisResult` JSON
+7. Frontend receives it:
+   - parses into `AnalysisResult` type
+   - navigates to `/pairs/[pairId]`
+   - passes data to domain components (`PairOverview`, `GradientView`, `FeatureTable`, `DetectorScorePanel`)
 
-   - mappt Request in Domain Objekte (`ImagePair`)
-   - triggert Core Analysis (`gradients`, `features`)
-   - ruft Detection Layer (`scores`)
-   - speichert alles über Data Access Layer
-   - baut `AnalysisResult`
+Key contract:
 
-6. Backend antwortet mit `AnalysisResult` JSON
-7. Frontend erhält das Objekt
-
-   - parst es in `AnalysisResult` Type
-   - navigiert nach `/pairs/[pairId]`
-   - übergibt Daten an Domain Komponenten wie `PairOverview`, `GradientView`, `FeatureTable`, `DetectorScorePanel`
-
-Wichtiger Contract:
-
-- `AnalysisResult` ist das zentrale Austauschobjekt zwischen Backend und Frontend.
-- Es ist stabil versioniert, Änderungen erfolgen bewusst und dokumentiert.
+- `AnalysisResult` is the central exchange object between backend and frontend
+- It is versioned/stable; changes are intentional and documented
 
 ---
 
-## 8. Erweiterbarkeit und State of the Art Integration
+## 8. Extensibility and State-of-the-Art Integration
 
-Die Architektur ist so gewählt, dass du neue wissenschaftliche Methoden einbauen kannst, ohne alles aufzureißen.
+Architecture is chosen so you can add new scientific methods without major rewrites.
 
-- Neue Detektoren
+- New detectors
 
-  - im Backend nur ein neuer Detector im Detection Layer
-  - Domain Objekt `AnalysisResult.detectors` enthält einfach einen weiteren Eintrag
-  - Frontend zeigt automatisch weitere Scores, wenn es generalisiert auf dieser Struktur arbeitet
+  - backend: add a detector in the detection layer
+  - `AnalysisResult.detectors` just gains another entry
+  - frontend shows more scores automatically if it iterates the structure
 
-- Neue Visualisierungen
+- New visualizations
 
-  - im Frontend nur neue Domain Komponenten und Charts
-  - sie konsumieren weiterhin `AnalysisResult`
-  - keine Änderung an API nötig, wenn du zusätzliche Felder optional hinzufügst
+  - frontend: add domain components/charts
+  - they keep consuming `AnalysisResult`
+  - no API change if new fields are optional
 
-- Neue Datenquellen oder Speicherformen
+- New data sources or storage
+  - data access layer can switch from files to SQLite/DB
+  - contracts to domain objects stay identical
 
-  - Data Access Layer kann von Dateien zu SQLite oder einer DB wechseln
-  - Contracts zu Domain Objekten bleiben identisch
-
-Details zur Erweiterung von Detektoren und Visualisierungen stehen in `Backend.md` und `Frontend.md` in eigenen Kapiteln.
+Details for extending detectors and visualizations are in `Backend.md` and `Frontend.md`.
