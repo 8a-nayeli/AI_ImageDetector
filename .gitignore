@@ -1,0 +1,38 @@
+# OS artifacts
+.DS_Store
+
+# Python
+__pycache__/
+*.py[cod]
+*.so
+*.egg-info/
+.venv/
+venv/
+
+# Environment files
+.env
+.env.*
+env/
+
+# Data artifacts
+data/
+backend/data/
+
+# Node/Next (frontend future-proof)
+node_modules/
+.next/
+out/
+
+# Editor/IDE
+.vscode/
+.idea/
+*.swp
+
+# Cursor/Workspace
+.cursor/
+
+# Coverage / test outputs
+.coverage
+.coverage.*
+htmlcov/
+
