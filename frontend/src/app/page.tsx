@@ -27,16 +27,16 @@ export default function Home() {
           </div>
         </div>
 
-        <Card className='self-start'>
+        <Card className='self-start border-slate-800 bg-slate-900 text-slate-100'>
           <CardContent className='flex flex-col gap-3 p-6'>
-            <h2 className='text-lg font-semibold text-slate-900'>
+            <h2 className='text-lg font-semibold text-slate-100'>
               Pipeline overview
             </h2>
-            <ul className='list-disc space-y-2 pl-5 text-sm text-slate-700'>
+            <ul className='list-disc space-y-2 pl-5 text-sm text-slate-200'>
               <li>Upload real and generated image</li>
               <li>Gradient maps (Sobel) and differences</li>
               <li>Statistical features and histograms</li>
-              <li>Detectors provide scores + explanations</li>
+              <li>Detectors provide scores and explanations</li>
             </ul>
           </CardContent>
         </Card>

@@ -15,8 +15,12 @@ export function ExampleGrid({ examples }: ExampleGridProps) {
   return (
     <div className='grid grid-cols-1 gap-4 md:grid-cols-2'>
       {examples.map((example) => (
-        <Link key={example.pairId} href={`/pairs/${example.pairId}`}>
-          <Card className='border-slate-800 bg-slate-900 text-slate-100 transition hover:-translate-y-0.5 hover:shadow-lg'>
+        <Link
+          key={example.pairId}
+          href={`/pairs/${example.pairId}`}
+          className='block h-full'
+        >
+          <Card className='flex h-full flex-col border-slate-800 bg-slate-900 text-slate-100 transition hover:-translate-y-0.5 hover:shadow-lg'>
             <CardHeader className='flex flex-row items-center justify-between'>
               <div>
                 <CardTitle className='text-slate-100'>
@@ -25,7 +29,7 @@ export function ExampleGrid({ examples }: ExampleGridProps) {
                 <p className='text-sm text-slate-300'>Click for details</p>
               </div>
             </CardHeader>
-            <CardContent className='flex flex-col gap-3'>
+            <CardContent className='flex flex-1 flex-col gap-3'>
               <div className='grid grid-cols-2 gap-2'>
                 <div className='space-y-1'>
                   <p className='text-xs uppercase tracking-wide text-slate-400'>

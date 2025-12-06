@@ -40,6 +40,10 @@ npm run dev
 
 Frontend runs on `http://localhost:3000`.
 
+## UI Preview
+
+![Gradient Analyzer UI](assets/display.png)
+
 ## API (backend)
 
 - `POST /api/analyze/pair` — multipart: `real_image`, `fake_image`, optional `generatorType`, `prompt`. Returns `AnalysisResult`.
